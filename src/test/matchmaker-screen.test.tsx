@@ -1,12 +1,70 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MatchmakerScreen } from "@/components/matchmaker-screen";
 import styles from "@/components/matchmaker-screen.module.css";
+import { matches } from "@/data/matches";
+
+function buildSession(overrides: Partial<{ brief: string | null; status: string }> = {}) {
+  return {
+    id: "session-123",
+    status: "loading",
+    brief: null,
+    createdAt: "2026-05-05T00:00:00.000Z",
+    updatedAt: "2026-05-05T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+}
+
+beforeEach(() => {
+  const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+    const url =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url;
+
+    if (url === "/api/feimec/tracking/sessions" && init?.method === "POST") {
+      return jsonResponse({ session: buildSession() }, 201);
+    }
+
+    if (
+      url === "/api/feimec/tracking/sessions/session-123/complete" &&
+      init?.method === "POST"
+    ) {
+      const body = JSON.parse(String(init.body ?? "{}")) as { brief?: string };
+
+      return jsonResponse({
+        session: buildSession({
+          status: "completed",
+          brief: body.brief ?? null,
+        }),
+        matchRanks: matches.map((match) => match.rank),
+        matches,
+      });
+    }
+
+    throw new Error(`Unexpected fetch call: ${init?.method ?? "GET"} ${url}`);
+  });
+
+  vi.stubGlobal("fetch", fetchMock);
+});
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("MatchmakerScreen", () => {
@@ -29,6 +87,8 @@ describe("MatchmakerScreen", () => {
     ).toBe("32px");
 
     await user.click(screen.getByRole("button", { name: /começar matchmaking/i }));
+    await screen.findByRole("textbox", { name: /descreva sua empresa/i });
+
     await user.type(
       screen.getByRole("textbox", { name: /descreva sua empresa/i }),
       "Somos uma empresa de educação financeira buscando parcerias B2B na FEIMEC.",
@@ -55,7 +115,7 @@ describe("MatchmakerScreen", () => {
 
     await user.click(screen.getByRole("button", { name: /começar matchmaking/i }));
 
-    expect(screen.getByText(/1 pergunta rápida/i)).toBeInTheDocument();
+    expect(await screen.findByText(/1 pergunta rápida/i)).toBeInTheDocument();
 
     await user.type(
       screen.getByRole("textbox", { name: /descreva sua empresa/i }),

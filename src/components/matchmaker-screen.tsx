@@ -24,11 +24,19 @@ import {
   Truck,
 } from "lucide-react";
 
-import { matches } from "@/data/matches";
+import { matches, type Match } from "@/data/matches";
+import type {
+  TrackingCompletionPayload,
+  TrackingSessionRecord,
+} from "@/lib/feimec-tracking";
 
 import styles from "./matchmaker-screen.module.css";
 
-type JourneyStage = "intro" | "question" | "swipe" | "map";
+type JourneyStage = "intro" | "question" | "swipe" | "loading" | "map";
+
+type CreateSessionResponse = {
+  session: TrackingSessionRecord;
+};
 
 const smoothEase = [0.22, 1, 0.36, 1] as const;
 const swipeExitEase = [0.32, 0.72, 0, 1] as const;
@@ -77,6 +85,10 @@ function wrapIndex(index: number) {
   return (index + matches.length) % matches.length;
 }
 
+async function readJsonResponse<T>(response: Response) {
+  return (await response.json()) as T;
+}
+
 export function MatchmakerScreen() {
   const [stage, setStage] = useState<JourneyStage>("intro");
   const [brief, setBrief] = useState("");
@@ -84,12 +96,18 @@ export function MatchmakerScreen() {
   const [cardDirection, setCardDirection] = useState(1);
   const [openRank, setOpenRank] = useState<number | null>(null);
   const [shareFeedback, setShareFeedback] = useState("");
+  const [savedMatches, setSavedMatches] = useState<Match[]>([]);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isStartingSession, setIsStartingSession] = useState(false);
 
   const currentMatch = matches[cardIndex];
+  const mapMatches = savedMatches;
 
   const goToStage = (nextStage: JourneyStage) => {
     setStage(nextStage);
     setShareFeedback("");
+    setErrorMessage("");
   };
 
   const moveCard = (direction: number) => {
@@ -111,15 +129,86 @@ export function MatchmakerScreen() {
     }
   };
 
-  const openMap = () => {
+  const handleStartJourney = async () => {
+    if (sessionId) {
+      goToStage("question");
+      return;
+    }
+
+    setErrorMessage("");
+    setShareFeedback("");
+    setIsStartingSession(true);
+
+    try {
+      const response = await fetch("/api/feimec/tracking/sessions", {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to create tracking session.");
+      }
+
+      const payload = await readJsonResponse<CreateSessionResponse>(response);
+      setSessionId(payload.session.id);
+      setStage("question");
+    } catch {
+      setErrorMessage("Não foi possível iniciar sua sessão agora. Tente novamente.");
+    } finally {
+      setIsStartingSession(false);
+    }
+  };
+
+  const finalizeSession = async () => {
+    if (mapMatches.length > 0) {
+      setOpenRank(null);
+      goToStage("map");
+      return;
+    }
+
+    if (!sessionId) {
+      setErrorMessage("Sua sessão não foi encontrada. Recarregue e tente novamente.");
+      setStage("swipe");
+      return;
+    }
+
+    setErrorMessage("");
+    setShareFeedback("");
     setOpenRank(null);
-    goToStage("map");
+    setStage("loading");
+
+    try {
+      const response = await fetch(
+        `/api/feimec/tracking/sessions/${sessionId}/complete`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            brief: brief.trim(),
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to complete tracking session.");
+      }
+
+      const payload = await readJsonResponse<TrackingCompletionPayload>(response);
+      setSavedMatches(payload.matches);
+      setStage("map");
+    } catch {
+      setErrorMessage("Não foi possível salvar seu resultado agora. Tente novamente.");
+      setStage("swipe");
+    }
+  };
+
+  const openMap = () => {
+    void finalizeSession();
   };
 
   const shareMap = () => {
-    setShareFeedback(
-      "Resumo pronto para compartilhar. Mock liberado para a próxima integração.",
-    );
+    setShareFeedback("Resumo salvo e pronto para compartilhar.");
   };
 
   return (
@@ -175,14 +264,21 @@ export function MatchmakerScreen() {
               <button
                 type="button"
                 className={styles.primaryButton}
-                onClick={() => goToStage("question")}
+                onClick={() => {
+                  void handleStartJourney();
+                }}
+                disabled={isStartingSession}
               >
                 <span className={styles.primaryButtonIcon}>
                   <Heart size={18} />
                 </span>
-                <span>Começar matchmaking</span>
+                <span>{isStartingSession ? "Iniciando sessão" : "Começar matchmaking"}</span>
                 <ArrowRight size={18} />
               </button>
+
+              {errorMessage ? (
+                <p className={`${styles.statusBanner} ${styles.errorBanner}`}>{errorMessage}</p>
+              ) : null}
 
               <div className={styles.stepDots}>
                 <span className={`${styles.stepDot} ${styles.stepDotActive}`} />
@@ -355,6 +451,10 @@ export function MatchmakerScreen() {
             </div>
 
             <div className={styles.swipeFooter}>
+              {errorMessage ? (
+                <p className={`${styles.statusBanner} ${styles.errorBanner}`}>{errorMessage}</p>
+              ) : null}
+
               <p className={styles.swipeHint}>Deslize para ver outros matches</p>
 
               <div className={styles.swipeControls}>
@@ -387,6 +487,24 @@ export function MatchmakerScreen() {
                   <ChevronRight size={20} />
                 </button>
               </div>
+            </div>
+          </motion.section>
+        ) : null}
+
+        {stage === "loading" ? (
+          <motion.section
+            key="loading"
+            className={`${styles.stageCard} ${styles.lightStage} ${styles.loadingStage}`}
+            initial={stageMotion.initial}
+            animate={stageMotion.animate}
+          >
+            <div className={styles.loadingBody}>
+              <div className={styles.loadingSpinner} aria-hidden="true" />
+              <h1 className={styles.loadingTitle}>Salvando sua sessão</h1>
+              <p className={styles.loadingCopy}>
+                Estamos finalizando o resultado, persistindo no schema feimec e preparando
+                a resposta que vai para o mapa.
+              </p>
             </div>
           </motion.section>
         ) : null}
@@ -426,11 +544,13 @@ export function MatchmakerScreen() {
             {shareFeedback ? <p className={styles.shareFeedback}>{shareFeedback}</p> : null}
 
             <div className={styles.rankingHeader}>
-              <h2 className={styles.rankingTitle}>20 oportunidades prontas para abordagem</h2>
+              <h2 className={styles.rankingTitle}>
+                {mapMatches.length} oportunidades prontas para abordagem
+              </h2>
             </div>
 
             <div className={styles.rankingList}>
-              {matches.map((match) => {
+              {mapMatches.map((match) => {
                 const isOpen = openRank === match.rank;
                 const leadTip = match.connectionTips[0];
                 const previewReason =
