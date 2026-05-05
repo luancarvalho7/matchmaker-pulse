@@ -50,24 +50,25 @@ const stageMotion = {
 };
 
 const swipeCardMotion = {
-  enter: (direction: number) => ({
-    opacity: 0.6,
-    x: direction > 0 ? 54 : -54,
-    rotate: direction > 0 ? 2.4 : -2.4,
+  enter: () => ({
+    opacity: 0,
+    y: 28,
     scale: 0.985,
   }),
   center: {
     opacity: 1,
     x: 0,
+    y: 0,
     rotate: 0,
     scale: 1,
     transition: swipeSpring,
   },
   exit: (direction: number) => ({
-    opacity: 0.35,
-    x: direction > 0 ? -72 : 72,
-    rotate: direction > 0 ? -3.5 : 3.5,
-    scale: 0.97,
+    opacity: 0,
+    x: direction > 0 ? -24 : 24,
+    y: 14,
+    rotate: 0,
+    scale: 0.992,
     transition: { duration: 0.22, ease: swipeExitEase },
   }),
 };
@@ -280,7 +281,7 @@ export function MatchmakerScreen() {
               <div className={`${styles.deckLayer} ${styles.deckLayerOne}`} aria-hidden="true" />
               <div className={`${styles.deckLayer} ${styles.deckLayerTwo}`} aria-hidden="true" />
 
-              <AnimatePresence custom={cardDirection} initial={false}>
+              <AnimatePresence custom={cardDirection} initial={false} mode="wait">
                 <motion.article
                   key={currentMatch.rank}
                   custom={cardDirection}
@@ -295,6 +296,7 @@ export function MatchmakerScreen() {
                   dragMomentum={false}
                   dragTransition={{ bounceStiffness: 420, bounceDamping: 32 }}
                   whileDrag={{ scale: 0.992 }}
+                  style={{ transformOrigin: "center bottom" }}
                   onDragEnd={handleCardDragEnd}
                 >
                   <div className={styles.swipeCardHeader}>
