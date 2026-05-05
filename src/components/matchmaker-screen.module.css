@@ -1,10 +1,17 @@
 .shell {
+  --journey-bottom-space: 32px;
+  --stage-space: clamp(1.15rem, 2vw, 2rem);
+  --swipe-card-max-inline: min(34rem, calc(100vw - (var(--stage-space) * 2)));
   position: relative;
   isolation: isolate;
-  min-height: 100svh;
-  padding: 1rem;
-  display: grid;
-  place-items: center;
+  width: 100vw;
+  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
+  padding: 0;
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
 }
 
 .ambient {
@@ -51,64 +58,65 @@
 .stageCard,
 .mapStage {
   position: relative;
-  width: min(100%, 27rem);
-  border-radius: 2.25rem;
-  border: 1px solid rgba(10, 94, 92, 0.12);
-  box-shadow: 0 28px 80px rgba(13, 29, 31, 0.18);
+  width: 100%;
+  min-height: 100%;
+  height: 100%;
+  max-height: 100vh;
+  border-radius: 0;
+  border: 0;
+  box-shadow: none;
   overflow: hidden;
 }
 
 .lightStage {
-  min-height: min(52rem, calc(100svh - 2rem));
-  padding: 1rem 1rem 1.25rem;
+  min-height: 100%;
+  height: 100%;
+  max-height: 100vh;
+  padding: var(--stage-space) var(--stage-space) var(--journey-bottom-space);
   display: flex;
   flex-direction: column;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 249, 0.98));
   color: #102325;
+  overflow: hidden;
 }
 
 .darkStage {
-  min-height: min(52rem, calc(100svh - 2rem));
-  padding: 1rem 1rem 1.25rem;
+  min-height: 100%;
+  height: 100%;
+  max-height: 100vh;
+  padding: var(--stage-space) var(--stage-space) var(--journey-bottom-space);
   display: flex;
   flex-direction: column;
   background:
     radial-gradient(circle at top, rgba(19, 134, 135, 0.22), transparent 36%),
     linear-gradient(180deg, #071718 0%, #041011 100%);
   color: #eefcf8;
-  border-color: rgba(114, 255, 237, 0.12);
-  box-shadow: 0 28px 80px rgba(3, 11, 12, 0.42);
+  overflow: hidden;
 }
 
 .mapStage {
-  width: min(100%, 72rem);
-  padding: 1.1rem;
+  min-height: 100%;
+  height: 100%;
+  max-height: 100vh;
+  padding: var(--stage-space);
   background:
     radial-gradient(circle at top right, rgba(24, 194, 182, 0.15), transparent 28%),
     linear-gradient(180deg, #081718 0%, #061112 100%);
   color: #eefcf8;
-  border-color: rgba(122, 255, 240, 0.12);
-  box-shadow: 0 32px 90px rgba(3, 11, 12, 0.46);
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
-.phoneTopBar,
+.stageHeader,
 .swipeTopBar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
-.timeStamp {
-  font-size: 0.84rem;
-  font-weight: 700;
-}
-
-.signalPill,
-.topBarSpacer {
-  display: block;
-  width: 2.5rem;
-  height: 1.15rem;
+.stageHeader {
+  justify-content: flex-start;
 }
 
 .brandBlock {
@@ -120,9 +128,24 @@
 }
 
 .stageBody {
-  margin-top: 1.5rem;
+  margin-top: clamp(1rem, 1.5vw, 1.75rem);
   display: grid;
-  gap: 1rem;
+  gap: clamp(1rem, 1.5vw, 1.5rem);
+  min-height: 0;
+}
+
+.introStage,
+.questionStage,
+.swipeStage {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  align-content: stretch;
+  gap: clamp(1rem, 2vw, 1.75rem);
+}
+
+.introStage .brandBlock,
+.questionStage .brandBlock {
+  margin-top: 0;
 }
 
 .introTitle,
@@ -153,14 +176,14 @@
 .detailCopy,
 .swipeCopy {
   color: #617473;
-  font-size: 1rem;
+  font-size: clamp(1rem, 1vw, 1.08rem);
   line-height: 1.65;
 }
 
 .orbitScene {
   position: relative;
-  width: 17rem;
-  height: 17rem;
+  width: clamp(12rem, 32vh, 17rem);
+  height: clamp(12rem, 32vh, 17rem);
   margin: 1rem auto 0;
 }
 
@@ -217,6 +240,13 @@
   margin-top: auto;
   display: grid;
   gap: 1rem;
+}
+
+.introStage .stageFooter,
+.questionStage .stageFooter,
+.swipeStage .swipeFooter {
+  margin-top: 0;
+  align-self: end;
 }
 
 .primaryButton,
@@ -327,7 +357,8 @@
 
 .questionField {
   width: 100%;
-  min-height: 19rem;
+  min-height: clamp(12rem, 34vh, 19rem);
+  max-height: clamp(12rem, 34vh, 19rem);
   resize: none;
   padding: 1.2rem;
   border-radius: 1.6rem;
@@ -352,13 +383,15 @@
 .fieldMeta {
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 1rem;
   color: #7a8c8b;
   font-size: 0.86rem;
 }
 
 .swipeTopBar {
-  align-items: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .swipeTitleGroup {
@@ -395,15 +428,23 @@
   flex: 1;
   display: grid;
   align-items: center;
+  justify-items: center;
   margin-top: 1rem;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  padding-block: clamp(0.25rem, 1.4vh, 0.85rem);
+  overflow: hidden;
 }
 
 .deckLayer {
   position: absolute;
-  inset: 0.9rem 1rem 0;
+  inset: clamp(0.55rem, 1.4vh, 0.9rem) clamp(0.75rem, 2.5vw, 1rem) 0;
   border-radius: 1.8rem;
   background: linear-gradient(180deg, rgba(12, 67, 70, 0.64), rgba(8, 31, 33, 0.8));
   border: 1px solid rgba(100, 250, 232, 0.06);
+  will-change: transform, opacity;
+  transform: translateZ(0);
 }
 
 .deckLayerOne {
@@ -419,19 +460,34 @@
 .swipeCard {
   position: relative;
   z-index: 1;
-  padding: 1.2rem;
+  inline-size: min(100%, var(--swipe-card-max-inline));
+  block-size: min(100%, clamp(20rem, 62vh, 42rem));
+  max-inline-size: 100%;
+  max-block-size: min(100%, calc(100vh - 11.75rem));
+  padding: clamp(0.95rem, 1.8vh, 1.2rem);
   border-radius: 1.8rem;
   background:
     linear-gradient(180deg, rgba(8, 69, 74, 0.96), rgba(6, 31, 33, 0.94)),
     linear-gradient(135deg, rgba(23, 190, 177, 0.08), transparent 60%);
   border: 1px solid rgba(105, 248, 232, 0.14);
-  box-shadow: 0 24px 40px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 16px 26px rgba(0, 0, 0, 0.22);
   touch-action: pan-y;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  contain: layout paint style;
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+  transform: translateZ(0);
+}
+
+.swipeCard::-webkit-scrollbar {
+  display: none;
 }
 
 .swipeCardHeader {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.95rem;
 }
 
@@ -552,6 +608,11 @@
   margin-top: 1rem;
 }
 
+.swipeStage .deckShell,
+.swipeStage .swipeFooter {
+  margin-top: 0;
+}
+
 .swipeHint {
   text-align: center;
   color: #9ec4c0;
@@ -627,8 +688,7 @@
 }
 
 .mapSpotlight,
-.summaryCard,
-.rankingCard {
+.summaryCard {
   position: relative;
   border-radius: 1.8rem;
   border: 1px solid rgba(126, 255, 235, 0.1);
@@ -648,9 +708,7 @@
   gap: 1rem;
 }
 
-.rankPill,
-.rankBadge,
-.scoreBadge {
+.rankPill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -662,6 +720,37 @@
   color: #ecfffb;
   font-size: 0.8rem;
   font-weight: 700;
+}
+
+.rankBadge,
+.scoreBadge,
+.priorityChip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.15rem;
+  padding: 0.42rem 0.78rem;
+  border-radius: 999px;
+  border: 1px solid rgba(126, 255, 235, 0.12);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.rankBadge {
+  background: rgba(255, 255, 255, 0.06);
+  color: #effcf8;
+}
+
+.scoreBadge {
+  min-width: 3.7rem;
+  background: rgba(28, 217, 206, 0.12);
+  color: #9ffbef;
+  box-shadow: inset 0 0 0 1px rgba(33, 219, 210, 0.08);
+}
+
+.priorityChip {
+  background: rgba(255, 255, 255, 0.04);
+  color: #bdfbf3;
 }
 
 .spotlightName {
@@ -736,7 +825,7 @@
 }
 
 .rankingHeader {
-  margin-top: 2rem;
+  margin-top: 1.35rem;
 }
 
 .rankingTitle {
@@ -748,12 +837,30 @@
 
 .rankingList {
   display: grid;
-  gap: 0.8rem;
+  gap: 0.95rem;
   margin-top: 1rem;
+  padding-bottom: 1rem;
 }
 
 .rankingCard {
+  position: relative;
   overflow: hidden;
+  border-radius: 1.6rem;
+  border: 1px solid rgba(126, 255, 235, 0.12);
+  background:
+    radial-gradient(circle at top right, rgba(37, 218, 205, 0.12), transparent 28%),
+    linear-gradient(180deg, rgba(6, 33, 35, 0.96), rgba(5, 22, 23, 0.98));
+  box-shadow: 0 18px 30px rgba(0, 0, 0, 0.22);
+}
+
+.rankingCard::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(160, 255, 235, 0.35), rgba(160, 255, 235, 0));
+  pointer-events: none;
 }
 
 .rankingCardOpen {
@@ -762,10 +869,7 @@
 }
 
 .rankingButton {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  display: block;
   width: 100%;
   padding: 1rem;
   border: 0;
@@ -776,31 +880,41 @@
 }
 
 .rankingMain {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.rankingTopRow {
   display: flex;
-  align-items: flex-start;
-  gap: 0.8rem;
-  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+}
+
+.cardQuickMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .companyBlock {
   width: 100%;
+  display: grid;
+  gap: 0.85rem;
 }
 
 .companyLine {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.8rem;
 }
 
 .companyName {
-  font-size: 1rem;
-  line-height: 1.15;
-  letter-spacing: -0.035em;
-  color: #f1fffc;
-}
-
-.scoreBadge {
+  font-size: clamp(1.45rem, 6vw, 1.9rem);
+  line-height: 0.98;
+  letter-spacing: -0.05em;
   color: #f1fffc;
 }
 
@@ -808,14 +922,74 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.6rem;
-  margin-top: 0.9rem;
+  margin-top: 0;
+}
+
+.metaItem {
+  margin-top: 0;
+  padding: 0.42rem 0.72rem;
+  border-radius: 999px;
+  border: 1px solid rgba(126, 255, 235, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: #b9ddd8;
+  font-size: 0.82rem;
+}
+
+.previewReason {
+  color: #cce8e4;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.actionPreview {
+  padding: 0.95rem 1rem;
+  border-radius: 1.2rem;
+  border: 1px solid rgba(126, 255, 235, 0.1);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+}
+
+.actionPreviewLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #aefcf1;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.actionPreviewText {
+  margin-top: 0.6rem;
+  color: #f0fffb;
+  font-size: 1.05rem;
+  line-height: 1.45;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.rankingFooterRow {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.expandCopy {
+  color: #8fb9b5;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
 }
 
 .progressTrack {
   position: relative;
   width: 100%;
-  height: 0.34rem;
-  margin-top: 0.9rem;
+  height: 0.42rem;
+  margin-top: 0;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
@@ -834,10 +1008,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.06);
+  flex: 0 0 auto;
+  background: rgba(255, 255, 255, 0.08);
   color: #dbfff9;
   transition: transform 180ms ease;
 }
@@ -848,7 +1023,26 @@
 
 .detailPanel {
   overflow: hidden;
-  padding: 0 1rem 1rem 4.35rem;
+  padding: 0 1rem 1rem;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.detailSection {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: 1.2rem;
+  border: 1px solid rgba(126, 255, 235, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.detailSectionTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #eefffb;
+  font-weight: 800;
 }
 
 .detailCopy {
@@ -858,7 +1052,7 @@
 .detailList {
   display: grid;
   gap: 0.7rem;
-  margin-top: 1rem;
+  margin-top: 0;
 }
 
 .detailItem {
@@ -871,13 +1065,96 @@
   color: #e2fcf8;
 }
 
-@media (min-width: 768px) {
-  .shell {
-    padding: 1.5rem;
+.detailItemIndex {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #24d6cb, #128d8f);
+  color: #031414;
+  font-size: 0.8rem;
+  font-weight: 800;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 767px) {
+  .mapHeader {
+    gap: 1.15rem;
   }
 
-  .mapStage {
-    padding: 1.4rem;
+  .mapTitle {
+    font-size: clamp(1.8rem, 9vw, 2.45rem);
+  }
+
+  .mapDescription {
+    margin-top: 0.75rem;
+    font-size: 0.98rem;
+    line-height: 1.55;
+  }
+
+  .mapActions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .mapActions .outlineButton,
+  .mapActions .primaryButton {
+    min-height: 3rem;
+    width: 100%;
+  }
+
+  .mapSpotlight,
+  .summaryCard {
+    border-radius: 1.45rem;
+    padding: 1rem;
+  }
+
+  .rankingTitle {
+    font-size: clamp(1.55rem, 7vw, 2rem);
+  }
+
+  .swipeCard {
+    border-radius: 1.45rem;
+  }
+}
+
+@media (max-height: 760px) {
+  .deckShell {
+    padding-block: 0.25rem;
+  }
+
+  .swipeCard {
+    block-size: min(100%, clamp(18rem, 58vh, 34rem));
+    max-block-size: min(100%, calc(100vh - 10.75rem));
+    padding: 0.95rem;
+  }
+
+  .swipeCompany {
+    font-size: clamp(1.5rem, 6.5vw, 2.15rem);
+  }
+
+  .swipeScore strong {
+    font-size: clamp(2.15rem, 9vw, 3rem);
+  }
+
+  .swipeDivider {
+    margin: 0.75rem 0;
+  }
+
+  .numberedTips {
+    gap: 0.65rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .stageBody {
+    gap: 1.35rem;
+  }
+
+  .swipeTopBar {
+    flex-wrap: nowrap;
   }
 
   .mapHeroGrid {
@@ -894,12 +1171,200 @@
   }
 }
 
+@media (max-height: 760px) {
+  .introTitle {
+    font-size: clamp(1.95rem, 9vw, 3.3rem);
+    max-width: 9ch;
+  }
+
+  .introDescription,
+  .swipeCopy,
+  .detailCopy,
+  .summaryCopy,
+  .mapDescription {
+    line-height: 1.5;
+  }
+
+  .orbitScene {
+    width: clamp(9.5rem, 24vh, 13.5rem);
+    height: clamp(9.5rem, 24vh, 13.5rem);
+    margin-top: 0.5rem;
+  }
+
+  .stageBody {
+    gap: 0.85rem;
+    margin-top: 0.75rem;
+  }
+
+  .primaryButton {
+    min-height: 3.5rem;
+  }
+}
+
+@media (max-height: 560px) and (min-width: 520px) {
+  .introStage .stageBody {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 1rem;
+  }
+
+  .introStage .introTitle,
+  .introStage .introDescription {
+    grid-column: 1;
+  }
+
+  .introStage .orbitScene {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    margin: 0 0 0 auto;
+    width: clamp(8.5rem, 20vh, 11rem);
+    height: clamp(8.5rem, 20vh, 11rem);
+  }
+}
+
+@media (min-width: 960px) {
+  .introStage {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(22rem, 0.85fr);
+    grid-template-areas:
+      "brand footer"
+      "body footer";
+    align-items: stretch;
+    column-gap: clamp(1.75rem, 4vw, 4rem);
+  }
+
+  .introStage .brandBlock {
+    grid-area: brand;
+    align-self: start;
+  }
+
+  .introStage .stageBody {
+    grid-area: body;
+    margin-top: 0;
+    grid-template-columns: minmax(0, 1fr) minmax(20rem, 24rem);
+    align-items: center;
+    column-gap: clamp(1.75rem, 4vw, 4rem);
+  }
+
+  .introStage .introTitle,
+  .introStage .introDescription {
+    grid-column: 1;
+  }
+
+  .introStage .introDescription {
+    max-width: 36rem;
+  }
+
+  .introStage .orbitScene {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    margin: 0 0 0 auto;
+    width: min(30vw, 24rem);
+    height: min(30vw, 24rem);
+  }
+
+  .introStage .stageFooter {
+    grid-area: footer;
+    width: min(100%, 24rem);
+    margin-top: 0;
+    align-self: end;
+    justify-self: end;
+    padding: clamp(1.25rem, 2vw, 1.75rem);
+    border-radius: 1.75rem;
+    background: rgba(255, 255, 255, 0.62);
+    border: 1px solid rgba(10, 94, 92, 0.08);
+    box-shadow: 0 20px 40px rgba(13, 29, 31, 0.08);
+    backdrop-filter: blur(16px);
+  }
+
+  .introStage .stepDots {
+    justify-content: flex-start;
+  }
+
+  .questionStage .stageBody {
+    margin-top: 0;
+    grid-template-columns: minmax(15rem, 0.45fr) minmax(0, 1fr);
+    column-gap: clamp(1.5rem, 3vw, 3rem);
+    align-items: start;
+  }
+
+  .questionStage .questionKicker,
+  .questionStage .questionTitle {
+    grid-column: 1;
+  }
+
+  .questionStage .fieldLabel,
+  .questionStage .questionField,
+  .questionStage .fieldMeta {
+    grid-column: 2;
+  }
+
+  .questionStage .questionField {
+    min-height: clamp(18rem, 40vh, 26rem);
+  }
+
+  .questionStage .stageFooter {
+    width: min(100%, 20rem);
+    margin-top: 0;
+    align-self: end;
+  }
+}
+
+@media (min-width: 1100px) {
+  .swipeStage {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(18rem, 0.8fr);
+    grid-template-areas:
+      "top top"
+      "deck footer";
+    gap: clamp(1.5rem, 3vw, 3rem);
+    align-items: stretch;
+  }
+
+  .swipeStage .swipeTopBar {
+    grid-area: top;
+  }
+
+  .swipeStage .deckShell {
+    grid-area: deck;
+    margin-top: 0;
+    justify-items: start;
+    min-height: clamp(28rem, 60vh, 40rem);
+  }
+
+  .swipeStage .swipeFooter {
+    grid-area: footer;
+    margin-top: 0;
+    padding: 1.4rem;
+    border-radius: 1.75rem;
+    background: linear-gradient(180deg, rgba(10, 33, 35, 0.88), rgba(8, 25, 26, 0.98));
+    border: 1px solid rgba(131, 255, 237, 0.12);
+    align-content: end;
+  }
+
+  .swipeStage .swipeHint {
+    text-align: left;
+  }
+
+  .swipeStage .swipeControls {
+    justify-content: flex-start;
+  }
+}
+
 @media (min-width: 1024px) {
   .rankingButton {
     padding: 1.1rem 1.2rem;
   }
 
+  .rankingMain {
+    gap: 1rem;
+  }
+
   .companyName {
-    font-size: 1.08rem;
+    font-size: 1.28rem;
+  }
+
+  .actionPreviewText {
+    -webkit-line-clamp: 3;
   }
 }

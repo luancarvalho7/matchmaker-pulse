@@ -14,7 +14,6 @@ import {
   Factory,
   Handshake,
   Heart,
-  Map,
   MapPin,
   Settings2,
   Share2,
@@ -25,13 +24,20 @@ import {
   Truck,
 } from "lucide-react";
 
-import { averageMatch, bestMatch, matches } from "@/data/matches";
+import { matches } from "@/data/matches";
 
 import styles from "./matchmaker-screen.module.css";
 
 type JourneyStage = "intro" | "question" | "swipe" | "map";
 
 const smoothEase = [0.22, 1, 0.36, 1] as const;
+const swipeExitEase = [0.32, 0.72, 0, 1] as const;
+const swipeSpring = {
+  type: "spring",
+  stiffness: 380,
+  damping: 34,
+  mass: 0.72,
+} as const;
 const introIcons = [Factory, Handshake, Settings2, TrendingUp, Truck, Building2];
 
 const stageMotion = {
@@ -45,24 +51,24 @@ const stageMotion = {
 
 const swipeCardMotion = {
   enter: (direction: number) => ({
-    opacity: 0,
-    x: direction > 0 ? 72 : -72,
-    rotate: direction > 0 ? 4 : -4,
-    scale: 0.95,
+    opacity: 0.6,
+    x: direction > 0 ? 54 : -54,
+    rotate: direction > 0 ? 2.4 : -2.4,
+    scale: 0.985,
   }),
   center: {
     opacity: 1,
     x: 0,
     rotate: 0,
     scale: 1,
-    transition: { duration: 0.45, ease: smoothEase },
+    transition: swipeSpring,
   },
   exit: (direction: number) => ({
-    opacity: 0,
-    x: direction > 0 ? -96 : 96,
-    rotate: direction > 0 ? -6 : 6,
-    scale: 0.92,
-    transition: { duration: 0.35, ease: smoothEase },
+    opacity: 0.35,
+    x: direction > 0 ? -72 : 72,
+    rotate: direction > 0 ? -3.5 : 3.5,
+    scale: 0.97,
+    transition: { duration: 0.22, ease: swipeExitEase },
   }),
 };
 
@@ -79,9 +85,6 @@ export function MatchmakerScreen() {
   const [shareFeedback, setShareFeedback] = useState("");
 
   const currentMatch = matches[cardIndex];
-  const spotlightScoreStyle = {
-    "--score-progress": `${bestMatch.match * 10}%`,
-  } as CSSProperties;
 
   const goToStage = (nextStage: JourneyStage) => {
     setStage(nextStage);
@@ -130,15 +133,10 @@ export function MatchmakerScreen() {
         {stage === "intro" ? (
           <motion.section
             key="intro"
-            className={`${styles.stageCard} ${styles.lightStage}`}
+            className={`${styles.stageCard} ${styles.lightStage} ${styles.introStage}`}
             initial={stageMotion.initial}
             animate={stageMotion.animate}
           >
-            <div className={styles.phoneTopBar}>
-              <span className={styles.timeStamp}>9:41</span>
-              <span className={styles.signalPill} />
-            </div>
-
             <div className={styles.brandBlock}>FEIMEC</div>
 
             <div className={styles.stageBody}>
@@ -197,11 +195,11 @@ export function MatchmakerScreen() {
         {stage === "question" ? (
           <motion.section
             key="question"
-            className={`${styles.stageCard} ${styles.lightStage}`}
+            className={`${styles.stageCard} ${styles.lightStage} ${styles.questionStage}`}
             initial={stageMotion.initial}
             animate={stageMotion.animate}
           >
-            <div className={styles.phoneTopBar}>
+            <div className={styles.stageHeader}>
               <button
                 type="button"
                 className={styles.iconButton}
@@ -212,7 +210,6 @@ export function MatchmakerScreen() {
               </button>
 
               <div className={styles.brandBlock}>FEIMEC</div>
-              <span className={styles.topBarSpacer} />
             </div>
 
             <div className={styles.stageBody}>
@@ -255,7 +252,7 @@ export function MatchmakerScreen() {
         {stage === "swipe" ? (
           <motion.section
             key="swipe"
-            className={`${styles.stageCard} ${styles.darkStage}`}
+            className={`${styles.stageCard} ${styles.darkStage} ${styles.swipeStage}`}
             initial={stageMotion.initial}
             animate={stageMotion.animate}
           >
@@ -283,7 +280,7 @@ export function MatchmakerScreen() {
               <div className={`${styles.deckLayer} ${styles.deckLayerOne}`} aria-hidden="true" />
               <div className={`${styles.deckLayer} ${styles.deckLayerTwo}`} aria-hidden="true" />
 
-              <AnimatePresence custom={cardDirection} initial={false} mode="wait">
+              <AnimatePresence custom={cardDirection} initial={false}>
                 <motion.article
                   key={currentMatch.rank}
                   custom={cardDirection}
@@ -294,7 +291,10 @@ export function MatchmakerScreen() {
                   exit="exit"
                   drag="x"
                   dragConstraints={{ left: 0, right: 0 }}
-                  dragElastic={0.18}
+                  dragElastic={0.12}
+                  dragMomentum={false}
+                  dragTransition={{ bounceStiffness: 420, bounceDamping: 32 }}
+                  whileDrag={{ scale: 0.992 }}
                   onDragEnd={handleCardDragEnd}
                 >
                   <div className={styles.swipeCardHeader}>
@@ -423,65 +423,16 @@ export function MatchmakerScreen() {
 
             {shareFeedback ? <p className={styles.shareFeedback}>{shareFeedback}</p> : null}
 
-            <div className={styles.mapHeroGrid}>
-              <article className={styles.mapSpotlight}>
-                <div className={styles.mapSpotlightTop}>
-                  <div>
-                    <span className={styles.rankPill}>Rank #{bestMatch.rank}</span>
-                    <h2 className={styles.spotlightName}>{bestMatch.companyName}</h2>
-                  </div>
-
-                  <div className={styles.scoreOrbit} style={spotlightScoreStyle}>
-                    <div className={styles.scoreRing}>
-                      <strong>{bestMatch.match.toFixed(1)}</strong>
-                      <span>/ 10</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className={styles.metaRow}>
-                  <span className={styles.metaItem}>
-                    <MapPin size={14} />
-                    Booth {bestMatch.booth}
-                  </span>
-                  <span className={styles.metaItem}>
-                    <Target size={14} />
-                    Match mais forte da jornada
-                  </span>
-                </div>
-
-                <p className={styles.detailCopy}>{bestMatch.why}</p>
-              </article>
-
-              <article className={styles.summaryCard}>
-                <span className={styles.summaryTitle}>Contexto captado</span>
-                <p className={styles.summaryCopy}>{brief}</p>
-
-                <div className={styles.miniMetrics}>
-                  <div className={styles.miniMetric}>
-                    <span className={styles.miniMetricLabel}>Matches</span>
-                    <strong>{matches.length}</strong>
-                  </div>
-                  <div className={styles.miniMetric}>
-                    <span className={styles.miniMetricLabel}>Score médio</span>
-                    <strong>{averageMatch}</strong>
-                  </div>
-                  <div className={styles.miniMetric}>
-                    <span className={styles.miniMetricLabel}>Card atual</span>
-                    <strong>{cardIndex + 1}</strong>
-                  </div>
-                </div>
-              </article>
-            </div>
-
             <div className={styles.rankingHeader}>
-              <span className={styles.mapEyebrow}>Mapa completo</span>
               <h2 className={styles.rankingTitle}>20 oportunidades prontas para abordagem</h2>
             </div>
 
             <div className={styles.rankingList}>
               {matches.map((match) => {
                 const isOpen = openRank === match.rank;
+                const leadTip = match.connectionTips[0];
+                const previewReason =
+                  match.why.length > 132 ? `${match.why.slice(0, 129).trim()}...` : match.why;
                 const progressStyle = {
                   "--match-progress": `${match.match * 10}%`,
                 } as CSSProperties;
@@ -505,34 +456,59 @@ export function MatchmakerScreen() {
                       }
                     >
                       <div className={styles.rankingMain}>
-                        <span className={styles.rankBadge}>#{match.rank}</span>
+                        <div className={styles.rankingTopRow}>
+                          <div className={styles.cardQuickMeta}>
+                            <span className={styles.rankBadge}>#{match.rank}</span>
+                            {match.rank <= 3 ? (
+                              <span className={styles.priorityChip}>Top match</span>
+                            ) : null}
+                          </div>
+
+                          <span className={styles.scoreBadge}>{match.match.toFixed(1)}</span>
+                        </div>
+
+                        <div className={styles.companyLine}>
+                          <h3 className={styles.companyName}>{match.companyName}</h3>
+
+                          <span className={`${styles.chevron} ${isOpen ? styles.chevronOpen : ""}`}>
+                            <ChevronDown size={18} />
+                          </span>
+                        </div>
+
+                        <div className={styles.metaRow}>
+                          <span className={styles.metaItem}>
+                            <MapPin size={14} />
+                            {match.booth}
+                          </span>
+                          <span className={styles.metaItem}>
+                            <Sparkles size={14} />
+                            {match.connectionTips.length} ações
+                          </span>
+                        </div>
 
                         <div className={styles.companyBlock}>
-                          <div className={styles.companyLine}>
-                            <h3 className={styles.companyName}>{match.companyName}</h3>
-                            <span className={styles.scoreBadge}>{match.match.toFixed(1)}</span>
+                          <p className={styles.previewReason}>{previewReason}</p>
+
+                          <div className={styles.actionPreview}>
+                            <span className={styles.actionPreviewLabel}>
+                              <Target size={14} />
+                              Ação recomendada
+                            </span>
+
+                            <p className={styles.actionPreviewText}>{leadTip}</p>
                           </div>
 
-                          <div className={styles.metaRow}>
-                            <span className={styles.metaItem}>
-                              <MapPin size={14} />
-                              {match.booth}
-                            </span>
-                            <span className={styles.metaItem}>
-                              <Map size={14} />
-                              Visão expandida
-                            </span>
-                          </div>
+                          <div className={styles.rankingFooterRow}>
+                            <div className={styles.progressTrack} style={progressStyle}>
+                              <span className={styles.progressValue} />
+                            </div>
 
-                          <div className={styles.progressTrack} style={progressStyle}>
-                            <span className={styles.progressValue} />
+                            <span className={styles.expandCopy}>
+                              {isOpen ? "Toque para recolher" : "Toque para ver plano de abordagem"}
+                            </span>
                           </div>
                         </div>
                       </div>
-
-                      <span className={`${styles.chevron} ${isOpen ? styles.chevronOpen : ""}`}>
-                        <ChevronDown size={18} />
-                      </span>
                     </button>
 
                     <AnimatePresence initial={false}>
@@ -545,16 +521,29 @@ export function MatchmakerScreen() {
                           exit={{ height: 0, opacity: 0 }}
                           transition={{ duration: 0.35, ease: smoothEase }}
                         >
-                          <p className={styles.detailCopy}>{match.why}</p>
+                          <div className={styles.detailSection}>
+                            <span className={styles.detailSectionTitle}>
+                              <Star size={14} />
+                              Por que faz sentido
+                            </span>
+                            <p className={styles.detailCopy}>{match.why}</p>
+                          </div>
 
-                          <ul className={styles.detailList}>
-                            {match.connectionTips.map((tip) => (
-                              <li key={tip} className={styles.detailItem}>
-                                <Sparkles size={14} />
-                                <span>{tip}</span>
-                              </li>
-                            ))}
-                          </ul>
+                          <div className={styles.detailSection}>
+                            <span className={styles.detailSectionTitle}>
+                              <Target size={14} />
+                              Plano de abordagem
+                            </span>
+
+                            <ul className={styles.detailList}>
+                              {match.connectionTips.map((tip, index) => (
+                                <li key={tip} className={styles.detailItem}>
+                                  <span className={styles.detailItemIndex}>{index + 1}</span>
+                                  <span>{tip}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
                         </motion.div>
                       ) : null}
                     </AnimatePresence>
