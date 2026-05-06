@@ -4,7 +4,7 @@ import { Pool } from "pg";
 
 import {
   buildTrackingCompletionPayload,
-  getDefaultMatchRanks,
+  validateFullTrackingMatchRanks,
   type TrackingCompletionPayload,
   type TrackingSessionRecord,
   type TrackingSessionStatus,
@@ -14,8 +14,20 @@ type TrackingSessionRow = {
   id: string;
   status: TrackingSessionStatus;
   brief: string | null;
+  name: string | null;
+  phone: string | null;
+  role: string | null;
   created_at: Date | string;
   updated_at: Date | string;
+};
+
+type CompleteTrackingSessionInput = {
+  brief?: string | null;
+  name?: string | null;
+  phone?: string | null;
+  role?: string | null;
+  matchRanks?: readonly number[] | null;
+  allowUpdate?: boolean;
 };
 
 type TrackingResultRow = {
@@ -63,9 +75,18 @@ function mapSession(row: TrackingSessionRow): TrackingSessionRecord {
     id: row.id,
     status: row.status,
     brief: row.brief,
+    name: row.name,
+    phone: row.phone,
+    role: row.role,
     createdAt: toIsoString(row.created_at),
     updatedAt: toIsoString(row.updated_at),
   };
+}
+
+function normalizeOptionalText(value?: string | null) {
+  const normalizedValue = value?.trim() ?? "";
+
+  return normalizedValue ? normalizedValue : null;
 }
 
 export class TrackingSessionNotFoundError extends Error {
@@ -81,7 +102,7 @@ export async function createTrackingSession() {
     `
       insert into feimec.tracking_sessions (id, status)
       values ($1, 'loading')
-      returning id, status, brief, created_at, updated_at
+      returning id, status, brief, name, phone, role, created_at, updated_at
     `,
     [sessionId],
   );
@@ -89,17 +110,46 @@ export async function createTrackingSession() {
   return mapSession(result.rows[0]);
 }
 
+export async function abandonTrackingSession(sessionId: string) {
+  const result = await getPool().query(
+    `
+      delete from feimec.tracking_sessions
+      where id = $1
+        and status = 'loading'
+    `,
+    [sessionId],
+  );
+
+  return result.rowCount === 1;
+}
+
 export async function completeTrackingSession(
   sessionId: string,
-  brief: string,
+  input: CompleteTrackingSessionInput,
 ): Promise<TrackingCompletionPayload> {
-  const normalizedBrief = brief.trim();
+  const normalizedBrief = normalizeOptionalText(input.brief);
+  const normalizedRole = normalizeOptionalText(input.role ?? input.brief);
+  const normalizedName = normalizeOptionalText(input.name);
+  const normalizedPhone = normalizeOptionalText(input.phone);
+  const providedMatchRanks = input.matchRanks ?? [];
 
-  if (!normalizedBrief) {
-    throw new Error("Brief is required to complete a tracking session.");
+  if (!normalizedRole) {
+    throw new Error("Role is required to complete a tracking session.");
   }
 
-  const matchRanks = getDefaultMatchRanks();
+  if (!normalizedName) {
+    throw new Error("Name is required to complete a tracking session.");
+  }
+
+  if (providedMatchRanks.length === 0) {
+    throw new Error("Match ranks are required to complete a tracking session.");
+  }
+
+  const matchRanks = validateFullTrackingMatchRanks(providedMatchRanks);
+
+  if (!matchRanks) {
+    throw new Error("Match ranks are invalid.");
+  }
   const client = await getPool().connect();
 
   try {
@@ -107,7 +157,7 @@ export async function completeTrackingSession(
 
     const existingSessionResult = await client.query<TrackingSessionRow>(
       `
-        select id, status, brief, created_at, updated_at
+        select id, status, brief, name, phone, role, created_at, updated_at
         from feimec.tracking_sessions
         where id = $1
         for update
@@ -121,7 +171,7 @@ export async function completeTrackingSession(
 
     const existingSession = existingSessionResult.rows[0];
 
-    if (existingSession.status === "completed") {
+    if (existingSession.status === "completed" && !input.allowUpdate) {
       const persistedResult = await client.query<TrackingResultRow>(
         `
           select match_ranks
@@ -147,12 +197,15 @@ export async function completeTrackingSession(
       `
         update feimec.tracking_sessions
         set brief = $2,
+            name = $3,
+            phone = $4,
+            role = $5,
             status = 'completed',
             updated_at = now()
         where id = $1
-        returning id, status, brief, created_at, updated_at
+        returning id, status, brief, name, phone, role, created_at, updated_at
       `,
-      [sessionId, normalizedBrief],
+      [sessionId, normalizedBrief ?? normalizedRole, normalizedName, normalizedPhone, normalizedRole],
     );
 
     const trackingResult = await client.query<TrackingResultRow>(

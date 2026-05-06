@@ -29,7 +29,10 @@ const client = new Client({
 
 const sessionId = randomUUID();
 const brief = `feimec roundtrip ${new Date().toISOString()}`;
-const matchRanks = [1, 2, 3];
+const name = "Roundtrip Matchmaker";
+const phone = "11999998888";
+const role = "Consultor industrial";
+const matchRanks = [2, 1, ...Array.from({ length: 18 }, (_, index) => index + 3)];
 
 try {
   await client.connect();
@@ -65,11 +68,14 @@ try {
       `
         update feimec.tracking_sessions
         set brief = $2,
+            name = $3,
+            phone = $4,
+            role = $5,
             status = 'completed',
             updated_at = now()
         where id = $1
       `,
-      [sessionId, brief],
+      [sessionId, brief, name, phone, role],
     );
 
     await client.query(
@@ -89,6 +95,7 @@ try {
   const persistedSession = await client.query(
     `
       select s.status, s.brief, r.match_ranks
+         , s.name, s.phone, s.role
       from feimec.tracking_sessions s
       join feimec.tracking_session_results r on r.session_id = s.id
       where s.id = $1
@@ -108,6 +115,10 @@ try {
 
   if (row.brief !== brief) {
     throw new Error("Tracking brief was not persisted correctly.");
+  }
+
+  if (row.name !== name || row.phone !== phone || row.role !== role) {
+    throw new Error("Tracking profile fields were not persisted correctly.");
   }
 
   if (JSON.stringify(row.match_ranks) !== JSON.stringify(matchRanks)) {
