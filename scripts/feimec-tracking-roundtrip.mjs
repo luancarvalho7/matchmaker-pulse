@@ -1,3 +1,4 @@
+import { deepStrictEqual } from "node:assert";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -33,6 +34,17 @@ const name = "Roundtrip Matchmaker";
 const phone = "11999998888";
 const role = "Consultor industrial";
 const matchRanks = [2, 1, ...Array.from({ length: 18 }, (_, index) => index + 3)];
+const matchmakerPayload = {
+  matchRanks,
+  matches: matchRanks.map((rank) => ({
+    rank,
+    companyName: `Roundtrip Company ${rank}`,
+    booth: `R${String(rank).padStart(3, "0")}`,
+    match: Number((10 - rank * 0.1).toFixed(1)),
+    why: `Roundtrip why ${rank}`,
+    connectionTips: [`Roundtrip tip ${rank}`],
+  })),
+};
 
 try {
   await client.connect();
@@ -80,10 +92,10 @@ try {
 
     await client.query(
       `
-        insert into feimec.tracking_session_results (session_id, match_ranks)
-        values ($1, $2::int[])
+        insert into feimec.tracking_session_results (session_id, match_ranks, matchmaker_payload)
+        values ($1, $2::int[], $3::jsonb)
       `,
-      [sessionId, matchRanks],
+      [sessionId, matchRanks, JSON.stringify(matchmakerPayload)],
     );
 
     await client.query("commit");
@@ -94,7 +106,7 @@ try {
 
   const persistedSession = await client.query(
     `
-      select s.status, s.brief, r.match_ranks
+      select s.status, s.brief, r.match_ranks, r.matchmaker_payload
          , s.name, s.phone, s.role
       from feimec.tracking_sessions s
       join feimec.tracking_session_results r on r.session_id = s.id
@@ -123,6 +135,12 @@ try {
 
   if (JSON.stringify(row.match_ranks) !== JSON.stringify(matchRanks)) {
     throw new Error("Tracking match ranks were not persisted correctly.");
+  }
+
+  try {
+    deepStrictEqual(row.matchmaker_payload, matchmakerPayload);
+  } catch {
+    throw new Error("Tracking matchmaker payload was not persisted correctly.");
   }
 
   await client.query(

@@ -185,7 +185,6 @@
   width: clamp(12rem, 32vh, 17rem);
   height: clamp(12rem, 32vh, 17rem);
   margin: 1rem auto 0;
-  pointer-events: none;
 }
 
 .orbitScene::before,

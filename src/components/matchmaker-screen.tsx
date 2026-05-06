@@ -46,6 +46,10 @@ type CreateSessionResponse = {
   session: TrackingSessionRecord;
 };
 
+type UpdateSessionResponse = {
+  session: TrackingSessionRecord;
+};
+
 type PersistedJourneyStage = Extract<JourneyStage, "question" | "swipe" | "map">;
 
 type PersistedJourneyState = {
@@ -513,6 +517,74 @@ export function MatchmakerScreen() {
     return payload.session.id;
   };
 
+  const saveTrackingProgress = async (payload: {
+    brief?: string;
+    name?: string;
+    phone?: string;
+    role?: string;
+  }) => {
+    if (Object.keys(payload).length === 0) {
+      return;
+    }
+
+    const activeSessionId = sessionId ?? (await createTrackingSession());
+    const response = await fetch(`/api/feimec/tracking/sessions/${activeSessionId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        await readResponseError(response, "Não foi possível salvar seus dados agora."),
+      );
+    }
+
+    const trackingPayload = await readJsonResponse<UpdateSessionResponse>(response);
+    setSessionId(trackingPayload.session.id);
+  };
+
+  const buildQuestionProgressPayload = (stepIndex: number) => {
+    const normalizedName = answers.name.trim();
+    const normalizedPhone = extractBrazilianPhoneDigits(answers.phone);
+    const normalizedRole = answers.role.trim();
+    const payload: {
+      brief?: string;
+      name?: string;
+      phone?: string;
+      role?: string;
+    } = {};
+
+    if (stepIndex === 0 && normalizedName) {
+      payload.name = normalizedName;
+    }
+
+    if (stepIndex >= 1) {
+      if (normalizedPhone.length >= 10 && normalizedPhone.length <= 11) {
+        if (normalizedName) {
+          payload.name = normalizedName;
+        }
+
+        payload.phone = normalizedPhone;
+      } else if (stepIndex === 1) {
+        return payload;
+      }
+    }
+
+    if (stepIndex >= 2 && normalizedRole) {
+      if (normalizedName) {
+        payload.name = normalizedName;
+      }
+
+      payload.role = normalizedRole;
+      payload.brief = normalizedRole;
+    }
+
+    return payload;
+  };
+
   const handleStartJourney = async () => {
     setErrorMessage("");
     setShareFeedback("");
@@ -615,7 +687,7 @@ export function MatchmakerScreen() {
             ...normalizedAnswers,
             brief: normalizedAnswers.role,
             matchRanks,
-            matches: hasFullMatchmakerResult ? matchmakerMatches : undefined,
+            matches: matchmakerMatches.length > 0 ? matchmakerMatches : undefined,
             allowUpdate,
           }),
         },
@@ -650,15 +722,26 @@ export function MatchmakerScreen() {
     }
   };
 
-  const advanceQuestion = () => {
+  const advanceQuestion = async () => {
     if (!currentAnswer.trim()) {
       return;
     }
 
     setSubmitError("");
 
+    try {
+      await saveTrackingProgress(buildQuestionProgressPayload(questionIndex));
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível salvar seus dados agora.",
+      );
+      return;
+    }
+
     if (questionIndex === questionSteps.length - 1) {
-      void submitAnswers();
+      await submitAnswers();
       return;
     }
 
@@ -855,7 +938,9 @@ export function MatchmakerScreen() {
               <button
                 type="button"
                 className={`${styles.primaryButton} ${styles.questionButton}`}
-                onClick={advanceQuestion}
+                    onClick={() => {
+                      void advanceQuestion();
+                    }}
                 disabled={!currentAnswer.trim()}
               >
                 <span>

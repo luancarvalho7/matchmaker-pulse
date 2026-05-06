@@ -35,8 +35,12 @@ $$;
 create table if not exists feimec.tracking_session_results (
   session_id uuid primary key references feimec.tracking_sessions (id) on delete cascade,
   match_ranks integer[] not null check (feimec.is_valid_match_ranking(match_ranks)),
+  matchmaker_payload jsonb not null default '{"matchRanks": [], "matches": []}'::jsonb,
   saved_at timestamptz not null default now()
 );
+
+alter table feimec.tracking_session_results
+  add column if not exists matchmaker_payload jsonb not null default '{"matchRanks": [], "matches": []}'::jsonb;
 
 alter table feimec.tracking_session_results
   drop constraint if exists tracking_session_results_match_ranks_check;

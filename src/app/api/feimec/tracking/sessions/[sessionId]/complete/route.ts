@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { validateFullTrackingMatchRanks } from "@/lib/feimec-tracking";
+import { extractMatchesFromPayload, validateFullTrackingMatchRanks } from "@/lib/feimec-tracking";
 import {
   completeTrackingSession,
   TrackingSessionNotFoundError,
@@ -21,6 +21,7 @@ type CompleteSessionBody = {
   phone?: unknown;
   role?: unknown;
   matchRanks?: unknown;
+  matches?: unknown;
   allowUpdate?: unknown;
 };
 
@@ -90,6 +91,9 @@ export async function POST(request: Request, context: RouteContext) {
   const providedMatchRanks = Array.isArray(body.matchRanks)
     ? body.matchRanks.filter((item): item is number => typeof item === "number")
     : [];
+  const providedMatches = extractMatchesFromPayload({
+    matches: Array.isArray(body.matches) ? body.matches : [],
+  });
   const matchRanks = validateFullTrackingMatchRanks(providedMatchRanks);
 
   if (!matchRanks) {
@@ -103,6 +107,7 @@ export async function POST(request: Request, context: RouteContext) {
       name: normalizedName,
       phone: normalizedPhone,
       matchRanks,
+      matches: providedMatches,
       allowUpdate: body.allowUpdate === true,
     });
 

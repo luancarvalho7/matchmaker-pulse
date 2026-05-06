@@ -50,6 +50,20 @@ function hydrateMatchesByRank(matchRanks: readonly number[]) {
   });
 }
 
+function buildPatchedSessionResponse(init?: RequestInit) {
+  const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+
+  return jsonResponse({
+    session: buildSession({
+      id: "session-123",
+      brief: typeof body.brief === "string" ? body.brief : null,
+      name: typeof body.name === "string" ? body.name : null,
+      phone: typeof body.phone === "string" ? body.phone : null,
+      role: typeof body.role === "string" ? body.role : null,
+    }),
+  });
+}
+
 const webhookCompanyNames = [
   "TOTVS",
   "SKA Automação de Engenharias",
@@ -95,11 +109,15 @@ afterEach(() => {
 describe("MatchmakerScreen", () => {
   it("keeps the mobile journey navigable between swipe and the full map", async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
 
       if (url.endsWith("/api/feimec/tracking/sessions")) {
         return jsonResponse({ session: buildSession() }, { status: 201 });
+      }
+
+      if (url.endsWith("/api/feimec/tracking/sessions/session-123") && init?.method === "PATCH") {
+        return buildPatchedSessionResponse(init);
       }
 
       if (url.endsWith("/api/matchmaker")) {
@@ -156,6 +174,10 @@ describe("MatchmakerScreen", () => {
 
       if (url.endsWith("/api/feimec/tracking/sessions")) {
         return Promise.resolve(jsonResponse({ session: buildSession() }, { status: 201 }));
+      }
+
+      if (url.endsWith("/api/feimec/tracking/sessions/session-123") && init?.method === "PATCH") {
+        return Promise.resolve(buildPatchedSessionResponse(init));
       }
 
       if (url.endsWith("/api/matchmaker")) {
@@ -276,6 +298,10 @@ describe("MatchmakerScreen", () => {
         return jsonResponse({ session: buildSession() }, { status: 201 });
       }
 
+      if (url.endsWith("/api/feimec/tracking/sessions/session-123") && init?.method === "PATCH") {
+        return buildPatchedSessionResponse(init);
+      }
+
       if (url.endsWith("/api/matchmaker")) {
         return jsonResponse(partialMatches);
       }
@@ -364,11 +390,15 @@ describe("MatchmakerScreen", () => {
 
   it("blocks submission when the phone number is incomplete", async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
 
       if (url.endsWith("/api/feimec/tracking/sessions")) {
         return jsonResponse({ session: buildSession() }, { status: 201 });
+      }
+
+      if (url.endsWith("/api/feimec/tracking/sessions/session-123") && init?.method === "PATCH") {
+        return buildPatchedSessionResponse(init);
       }
 
       throw new Error(`Unexpected fetch call: ${url}`);
@@ -391,7 +421,75 @@ describe("MatchmakerScreen", () => {
     expect(
       await screen.findByText(/informe um telefone brasileiro válido para continuar/i),
     ).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("persists partial tracking data after each answered question", async () => {
+    const user = userEvent.setup();
+    const partialPayloads: Array<Record<string, unknown>> = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+
+      if (url.endsWith("/api/feimec/tracking/sessions")) {
+        return jsonResponse({ session: buildSession({ id: "session-123" }) }, { status: 201 });
+      }
+
+      if (url.endsWith("/api/feimec/tracking/sessions/session-123") && init?.method === "PATCH") {
+        const body = JSON.parse(String(init.body ?? "{}")) as Record<string, unknown>;
+        partialPayloads.push(body);
+
+        return jsonResponse({
+          session: buildSession({
+            id: "session-123",
+            brief: typeof body.brief === "string" ? body.brief : null,
+            name: typeof body.name === "string" ? body.name : null,
+            phone: typeof body.phone === "string" ? body.phone : null,
+            role: typeof body.role === "string" ? body.role : null,
+          }),
+        });
+      }
+
+      if (url.endsWith("/api/matchmaker")) {
+        return jsonResponse(matches);
+      }
+
+      if (url.endsWith("/api/feimec/tracking/sessions/session-123/complete")) {
+        return jsonResponse({
+          session: buildSession({ status: "completed" }),
+          matchRanks: matches.map((match) => match.rank),
+          matches,
+        });
+      }
+
+      throw new Error(`Unexpected fetch call: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<MatchmakerScreen />);
+
+    await user.click(screen.getByRole("button", { name: /começar matchmaking/i }));
+    await screen.findByRole("textbox", { name: /qual seu nome\?/i });
+
+    await user.type(screen.getByRole("textbox", { name: /qual seu nome\?/i }), "Luan");
+    await user.click(screen.getByRole("button", { name: /continuar/i }));
+
+    await user.type(
+      await screen.findByRole("textbox", { name: /qual seu telefone\?/i }),
+      "11999998888",
+    );
+    await user.click(screen.getByRole("button", { name: /continuar/i }));
+
+    await user.type(await screen.findByRole("textbox", { name: /o que você faz\?/i }), "Comprador");
+    await user.click(screen.getByRole("button", { name: /encontrar matches/i }));
+
+    await screen.findByRole("heading", { name: /seu match ideal/i });
+
+    expect(partialPayloads).toEqual([
+      { name: "Luan" },
+      { name: "Luan", phone: "11999998888" },
+      { name: "Luan", phone: "11999998888", role: "Comprador", brief: "Comprador" },
+    ]);
   });
 
   it("reuses the current tracking session when the user goes back from swipe to edit answers", async () => {
@@ -405,6 +503,10 @@ describe("MatchmakerScreen", () => {
         createSessionCalls += 1;
 
         return jsonResponse({ session: buildSession({ id: "session-123" }) }, { status: 201 });
+      }
+
+      if (url.endsWith("/api/feimec/tracking/sessions/session-123") && init?.method === "PATCH") {
+        return buildPatchedSessionResponse(init);
       }
 
       if (url.endsWith("/api/matchmaker")) {
@@ -466,11 +568,15 @@ describe("MatchmakerScreen", () => {
 
   it("shows medal styling for the top 3 and lets the user mark a card as visited", async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
 
       if (url.endsWith("/api/feimec/tracking/sessions")) {
         return jsonResponse({ session: buildSession() }, { status: 201 });
+      }
+
+      if (url.endsWith("/api/feimec/tracking/sessions/session-123") && init?.method === "PATCH") {
+        return buildPatchedSessionResponse(init);
       }
 
       if (url.endsWith("/api/matchmaker")) {
@@ -529,6 +635,10 @@ describe("MatchmakerScreen", () => {
 
       if (url.endsWith("/api/feimec/tracking/sessions")) {
         return jsonResponse({ session: buildSession() }, { status: 201 });
+      }
+
+      if (url.endsWith("/api/feimec/tracking/sessions/session-123") && init?.method === "PATCH") {
+        return buildPatchedSessionResponse(init);
       }
 
       if (url.endsWith("/api/matchmaker")) {
