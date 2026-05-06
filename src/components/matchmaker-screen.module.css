@@ -398,7 +398,7 @@
 }
 
 .questionField {
-  min-height: clamp(10rem, 28vh, 14rem);
+  min-height: calc((1.55em * 2) + 2rem);
   height: auto;
   padding: 1rem 1.2rem;
   line-height: 1.55;

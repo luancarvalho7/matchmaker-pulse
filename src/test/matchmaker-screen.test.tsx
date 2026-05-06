@@ -155,6 +155,13 @@ describe("MatchmakerScreen", () => {
       await screen.findByRole("textbox", { name: /o que você faz\?/i }),
       "Consultor industrial",
     );
+    await user.click(screen.getByRole("button", { name: /continuar/i }));
+
+    const briefField = await screen.findByRole("textbox", {
+      name: /o que você busca nesse evento\?/i,
+    });
+    expect(briefField).toHaveAttribute("rows", "2");
+    await user.type(briefField, "Quero encontrar parceiros para automacao industrial");
     await user.click(screen.getByRole("button", { name: /encontrar matches/i }));
 
     await screen.findByRole("heading", { name: /seu match ideal/i });
@@ -236,6 +243,13 @@ describe("MatchmakerScreen", () => {
       await screen.findByRole("textbox", { name: /o que você faz\?/i }),
       "Consultor financeiro B2B",
     );
+    await user.click(screen.getByRole("button", { name: /continuar/i }));
+
+    const briefField = await screen.findByRole("textbox", {
+      name: /o que você busca nesse evento\?/i,
+    });
+    expect(briefField).toHaveAttribute("rows", "2");
+    await user.type(briefField, "Busco fornecedores para projetos de expansao industrial");
     await user.click(screen.getByRole("button", { name: /encontrar matches/i }));
 
     await screen.findByRole("heading", { name: /montando seu radar industrial/i });
@@ -251,6 +265,7 @@ describe("MatchmakerScreen", () => {
           name: "Luan Carvalho",
           phone: "11999998888",
           role: "Consultor financeiro B2B",
+          brief: "Busco fornecedores para projetos de expansao industrial",
         }),
       }),
     );
@@ -278,13 +293,85 @@ describe("MatchmakerScreen", () => {
           name: "Luan Carvalho",
           phone: "11999998888",
           role: "Consultor financeiro B2B",
-          brief: "Consultor financeiro B2B",
+          brief: "Busco fornecedores para projetos de expansao industrial",
           matchRanks: webhookMatches.map((match) => match.rank),
           matches: webhookMatches,
           allowUpdate: false,
         }),
       }),
     );
+  });
+
+  it("does not skip past the brief step when continue is clicked twice during save", async () => {
+    const user = userEvent.setup();
+    const roleStepResolvers: Array<(value: Response) => void> = [];
+
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+
+      if (url.endsWith("/api/feimec/tracking/sessions")) {
+        return Promise.resolve(jsonResponse({ session: buildSession() }, { status: 201 }));
+      }
+
+      if (url.endsWith("/api/feimec/tracking/sessions/session-123") && init?.method === "PATCH") {
+        const body = JSON.parse(String(init.body ?? "{}")) as Record<string, unknown>;
+
+        if (typeof body.role === "string" && typeof body.brief !== "string") {
+          return new Promise<Response>((resolve) => {
+            roleStepResolvers.push(resolve);
+          });
+        }
+
+        return Promise.resolve(buildPatchedSessionResponse(init));
+      }
+
+      if (url.endsWith("/api/matchmaker")) {
+        return Promise.resolve(jsonResponse(matches));
+      }
+
+      if (url.endsWith("/api/feimec/tracking/sessions/session-123/complete")) {
+        return Promise.resolve(
+          jsonResponse({
+            session: buildSession({ status: "completed" }),
+            matchRanks: matches.map((match) => match.rank),
+            matches,
+          }),
+        );
+      }
+
+      throw new Error(`Unexpected fetch call: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<MatchmakerScreen />);
+
+    await user.click(screen.getByRole("button", { name: /começar matchmaking/i }));
+    await user.type(await screen.findByRole("textbox", { name: /qual seu nome\?/i }), "Luan");
+    await user.click(screen.getByRole("button", { name: /continuar/i }));
+    await user.type(
+      await screen.findByRole("textbox", { name: /qual seu telefone\?/i }),
+      "11999998888",
+    );
+    await user.click(screen.getByRole("button", { name: /continuar/i }));
+    await user.type(await screen.findByRole("textbox", { name: /o que você faz\?/i }), "Comprador");
+
+    await user.dblClick(screen.getByRole("button", { name: /continuar/i }));
+
+    await waitFor(() => {
+      expect(roleStepResolvers).toHaveLength(1);
+    });
+
+    for (const resolveRoleStep of roleStepResolvers) {
+      resolveRoleStep(buildPatchedSessionResponse({
+        body: JSON.stringify({ name: "Luan", phone: "11999998888", role: "Comprador" }),
+      }));
+    }
+
+    await screen.findByRole("textbox", { name: /o que você busca nesse evento\?/i });
+    expect(
+      screen.queryByRole("heading", { name: /o que você busca nesse evento\?/i }),
+    ).toBeInTheDocument();
   });
 
   it("degrades gracefully when the webhook returns only a partial recognized ranking", async () => {
@@ -333,6 +420,11 @@ describe("MatchmakerScreen", () => {
     );
     await user.click(screen.getByRole("button", { name: /continuar/i }));
     await user.type(await screen.findByRole("textbox", { name: /o que você faz\?/i }), "Comprador");
+    await user.click(screen.getByRole("button", { name: /continuar/i }));
+    await user.type(
+      await screen.findByRole("textbox", { name: /o que você busca nesse evento\?/i }),
+      "Busco fornecedores para digitalizar a operacao",
+    );
     await user.click(screen.getByRole("button", { name: /encontrar matches/i }));
 
     await screen.findByRole("heading", { name: /seu match ideal/i });
@@ -416,12 +508,17 @@ describe("MatchmakerScreen", () => {
     await user.type(await screen.findByRole("textbox", { name: /qual seu telefone\?/i }), "1");
     await user.click(screen.getByRole("button", { name: /continuar/i }));
     await user.type(await screen.findByRole("textbox", { name: /o que você faz\?/i }), "Comprador");
+    await user.click(screen.getByRole("button", { name: /continuar/i }));
+    await user.type(
+      await screen.findByRole("textbox", { name: /o que você busca nesse evento\?/i }),
+      "Quero encontrar parceiros para novos projetos",
+    );
     await user.click(screen.getByRole("button", { name: /encontrar matches/i }));
 
     expect(
       await screen.findByText(/informe um telefone brasileiro válido para continuar/i),
     ).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it("persists partial tracking data after each answered question", async () => {
@@ -481,6 +578,11 @@ describe("MatchmakerScreen", () => {
     await user.click(screen.getByRole("button", { name: /continuar/i }));
 
     await user.type(await screen.findByRole("textbox", { name: /o que você faz\?/i }), "Comprador");
+    await user.click(screen.getByRole("button", { name: /continuar/i }));
+    await user.type(
+      await screen.findByRole("textbox", { name: /o que você busca nesse evento\?/i }),
+      "Quero encontrar parceiros para integracao industrial",
+    );
     await user.click(screen.getByRole("button", { name: /encontrar matches/i }));
 
     await screen.findByRole("heading", { name: /seu match ideal/i });
@@ -488,7 +590,13 @@ describe("MatchmakerScreen", () => {
     expect(partialPayloads).toEqual([
       { name: "Luan" },
       { name: "Luan", phone: "11999998888" },
-      { name: "Luan", phone: "11999998888", role: "Comprador", brief: "Comprador" },
+      { name: "Luan", phone: "11999998888", role: "Comprador" },
+      {
+        name: "Luan",
+        phone: "11999998888",
+        role: "Comprador",
+        brief: "Quero encontrar parceiros para integracao industrial",
+      },
     ]);
   });
 
@@ -546,6 +654,11 @@ describe("MatchmakerScreen", () => {
     );
     await user.click(screen.getByRole("button", { name: /continuar/i }));
     await user.type(await screen.findByRole("textbox", { name: /o que você faz\?/i }), "Comprador");
+    await user.click(screen.getByRole("button", { name: /continuar/i }));
+    await user.type(
+      await screen.findByRole("textbox", { name: /o que você busca nesse evento\?/i }),
+      "Quero avaliar fornecedores para a planta",
+    );
     await user.click(screen.getByRole("button", { name: /encontrar matches/i }));
 
     await screen.findByRole("heading", { name: /seu match ideal/i });
@@ -558,6 +671,8 @@ describe("MatchmakerScreen", () => {
     await screen.findByRole("textbox", { name: /qual seu telefone\?/i });
     await user.click(screen.getByRole("button", { name: /continuar/i }));
     await screen.findByRole("textbox", { name: /o que você faz\?/i });
+    await user.click(screen.getByRole("button", { name: /continuar/i }));
+    await screen.findByRole("textbox", { name: /o que você busca nesse evento\?/i });
     await user.click(screen.getByRole("button", { name: /encontrar matches/i }));
 
     await screen.findByRole("heading", { name: /seu match ideal/i });
@@ -609,6 +724,11 @@ describe("MatchmakerScreen", () => {
     );
     await user.click(screen.getByRole("button", { name: /continuar/i }));
     await user.type(await screen.findByRole("textbox", { name: /o que você faz\?/i }), "Comprador");
+    await user.click(screen.getByRole("button", { name: /continuar/i }));
+    await user.type(
+      await screen.findByRole("textbox", { name: /o que você busca nesse evento\?/i }),
+      "Quero descobrir expositores com mais aderencia",
+    );
     await user.click(screen.getByRole("button", { name: /encontrar matches/i }));
 
     await screen.findByRole("heading", { name: /seu match ideal/i });
@@ -685,6 +805,11 @@ describe("MatchmakerScreen", () => {
     );
     await user.click(screen.getByRole("button", { name: /continuar/i }));
     await user.type(await screen.findByRole("textbox", { name: /o que você faz\?/i }), "Comprador");
+    await user.click(screen.getByRole("button", { name: /continuar/i }));
+    await user.type(
+      await screen.findByRole("textbox", { name: /o que você busca nesse evento\?/i }),
+      "Busco parceiros para ampliar minha rede industrial",
+    );
     await user.click(screen.getByRole("button", { name: /encontrar matches/i }));
 
     await screen.findByRole("heading", { name: /seu match ideal/i });

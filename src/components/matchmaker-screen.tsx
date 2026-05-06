@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import type { PanInfo } from "framer-motion";
 import {
@@ -36,7 +36,7 @@ import styles from "./matchmaker-screen.module.css";
 
 type JourneyStage = "intro" | "question" | "loading" | "swipe" | "map";
 
-type QuestionKey = "name" | "phone" | "role";
+type QuestionKey = "name" | "phone" | "role" | "brief";
 
 type MatchmakerAnswers = Record<QuestionKey, string>;
 
@@ -67,6 +67,7 @@ const initialAnswers: MatchmakerAnswers = {
   name: "",
   phone: "",
   role: "",
+  brief: "",
 };
 const matchmakerStorageKey = "matchmaker-screen-state:v1";
 
@@ -82,7 +83,7 @@ const introIcons = [Factory, Handshake, Settings2, TrendingUp, Truck, Building2]
 const questionSteps = [
   {
     key: "name",
-    kicker: "Pergunta 1 de 3",
+    kicker: "Pergunta 1 de 4",
     title: "Qual seu nome?",
     placeholder: "Ex.: Luan Carvalho",
     inputMode: "text" as const,
@@ -92,7 +93,7 @@ const questionSteps = [
   },
   {
     key: "phone",
-    kicker: "Pergunta 2 de 3",
+    kicker: "Pergunta 2 de 4",
     title: "Qual seu telefone?",
     placeholder: "Ex.: (11) 99999-8888",
     inputMode: "tel" as const,
@@ -102,13 +103,23 @@ const questionSteps = [
   },
   {
     key: "role",
-    kicker: "Pergunta 3 de 3",
+    kicker: "Pergunta 3 de 4",
     title: "O que você faz?",
     placeholder: "Ex.: Consultor financeiro B2B",
     inputMode: "text" as const,
     autoComplete: "organization-title",
     maxLength: 240,
     multiline: false,
+  },
+  {
+    key: "brief",
+    kicker: "Pergunta 4 de 4",
+    title: "O que você busca nesse evento?",
+    placeholder: "Ex.: Encontrar fornecedores e parceiros para acelerar meus projetos.",
+    inputMode: "text" as const,
+    autoComplete: "off",
+    maxLength: 320,
+    multiline: true,
   },
 ] as const;
 const loadingMessages = [
@@ -198,6 +209,7 @@ function normalizePersistedAnswers(value: unknown): MatchmakerAnswers {
     name: typeof value.name === "string" ? value.name : initialAnswers.name,
     phone: typeof value.phone === "string" ? value.phone : initialAnswers.phone,
     role: typeof value.role === "string" ? value.role : initialAnswers.role,
+    brief: typeof value.brief === "string" ? value.brief : initialAnswers.brief,
   };
 }
 
@@ -387,6 +399,8 @@ export function MatchmakerScreen() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isStartingSession, setIsStartingSession] = useState(false);
   const [hasLoadedPersistedJourney, setHasLoadedPersistedJourney] = useState(false);
+  const [isQuestionActionPending, setIsQuestionActionPending] = useState(false);
+  const isQuestionActionPendingRef = useRef(false);
 
   const swipeMatches = savedMatches.length > 0 ? savedMatches : matches;
   const mapMatches = savedMatches.length > 0 ? savedMatches : matches;
@@ -474,6 +488,8 @@ export function MatchmakerScreen() {
     setQuestionIndex(0);
     setQuestionDirection(1);
     setSubmitError("");
+    isQuestionActionPendingRef.current = false;
+    setIsQuestionActionPending(false);
   };
 
   const resetJourneyState = () => {
@@ -550,6 +566,7 @@ export function MatchmakerScreen() {
     const normalizedName = answers.name.trim();
     const normalizedPhone = extractBrazilianPhoneDigits(answers.phone);
     const normalizedRole = answers.role.trim();
+    const normalizedBrief = answers.brief.trim();
     const payload: {
       brief?: string;
       name?: string;
@@ -579,7 +596,18 @@ export function MatchmakerScreen() {
       }
 
       payload.role = normalizedRole;
-      payload.brief = normalizedRole;
+    }
+
+    if (stepIndex >= 3 && normalizedBrief) {
+      if (normalizedName) {
+        payload.name = normalizedName;
+      }
+
+      if (normalizedRole) {
+        payload.role = normalizedRole;
+      }
+
+      payload.brief = normalizedBrief;
     }
 
     return payload;
@@ -617,6 +645,10 @@ export function MatchmakerScreen() {
   };
 
   const goBackFromQuestion = () => {
+    if (isQuestionActionPendingRef.current) {
+      return;
+    }
+
     setSubmitError("");
 
     if (questionIndex === 0) {
@@ -635,9 +667,15 @@ export function MatchmakerScreen() {
       name: answers.name.trim(),
       phone: extractBrazilianPhoneDigits(answers.phone),
       role: answers.role.trim(),
+      brief: answers.brief.trim(),
     };
 
-    if (!normalizedAnswers.name || !normalizedAnswers.phone || !normalizedAnswers.role) {
+    if (
+      !normalizedAnswers.name ||
+      !normalizedAnswers.phone ||
+      !normalizedAnswers.role ||
+      !normalizedAnswers.brief
+    ) {
       setSubmitError("Preencha todos os campos para continuar.");
       return;
     }
@@ -685,7 +723,6 @@ export function MatchmakerScreen() {
           },
           body: JSON.stringify({
             ...normalizedAnswers,
-            brief: normalizedAnswers.role,
             matchRanks,
             matches: matchmakerMatches.length > 0 ? matchmakerMatches : undefined,
             allowUpdate,
@@ -723,30 +760,36 @@ export function MatchmakerScreen() {
   };
 
   const advanceQuestion = async () => {
-    if (!currentAnswer.trim()) {
+    if (isQuestionActionPendingRef.current || !currentAnswer.trim()) {
       return;
     }
 
+    isQuestionActionPendingRef.current = true;
+    setIsQuestionActionPending(true);
     setSubmitError("");
 
     try {
-      await saveTrackingProgress(buildQuestionProgressPayload(questionIndex));
-    } catch (error) {
-      setSubmitError(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível salvar seus dados agora.",
-      );
-      return;
-    }
+      try {
+        await saveTrackingProgress(buildQuestionProgressPayload(questionIndex));
+      } catch (error) {
+        setSubmitError(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível salvar seus dados agora.",
+        );
+        return;
+      }
 
-    if (questionIndex === questionSteps.length - 1) {
-      await submitAnswers();
-      return;
+      if (questionIndex === questionSteps.length - 1) {
+        await submitAnswers();
+      } else {
+        setQuestionDirection(1);
+        setQuestionIndex((currentIndex) => Math.min(currentIndex + 1, questionSteps.length - 1));
+      }
+    } finally {
+      isQuestionActionPendingRef.current = false;
+      setIsQuestionActionPending(false);
     }
-
-    setQuestionDirection(1);
-    setQuestionIndex((currentIndex) => currentIndex + 1);
   };
 
   const moveCard = (direction: number) => {
@@ -882,6 +925,7 @@ export function MatchmakerScreen() {
                 className={styles.iconButton}
                 aria-label="Voltar"
                 onClick={goBackFromQuestion}
+                disabled={isQuestionActionPending}
               >
                 <ArrowLeft size={18} />
               </button>
@@ -909,6 +953,7 @@ export function MatchmakerScreen() {
                       id={currentQuestion.key}
                       className={styles.questionField}
                       aria-label={currentQuestion.title}
+                      rows={2}
                       value={currentAnswer}
                       maxLength={currentQuestion.maxLength}
                       onChange={(event) => updateAnswer(currentQuestion.key, event.target.value)}
@@ -941,7 +986,7 @@ export function MatchmakerScreen() {
                     onClick={() => {
                       void advanceQuestion();
                     }}
-                disabled={!currentAnswer.trim()}
+                disabled={isQuestionActionPending || !currentAnswer.trim()}
               >
                 <span>
                   {questionIndex === questionSteps.length - 1 ? "Encontrar matches" : "Continuar"}

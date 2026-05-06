@@ -32,10 +32,43 @@ describe("POST /api/matchmaker", () => {
           name: "Teste Copilot",
           phone: "11999998888",
           role: "Comprador industrial",
+          brief: "Procuro fornecedores de automacao para fechar parceria",
         }),
       }),
     );
 
     expect(timeoutMock).toHaveBeenCalledWith(90000);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://automatize.lionsoft.com.br/webhook/matchmaker/post/industrias",
+      expect.objectContaining({
+        body: JSON.stringify({
+          name: "Teste Copilot",
+          phone: "11999998888",
+          role: "Comprador industrial",
+          brief: "Procuro fornecedores de automacao para fechar parceria",
+        }),
+      }),
+    );
+  });
+
+  it("rejects requests without brief", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/matchmaker", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "Teste Copilot",
+          phone: "11999998888",
+          role: "Comprador industrial",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Nome, telefone, funcao e objetivo sao obrigatorios.",
+    });
   });
 });

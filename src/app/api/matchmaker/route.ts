@@ -41,9 +41,13 @@ export async function POST(request: Request) {
     const name = normalizeRequiredText(payload.name);
     const role = normalizeRequiredText(payload.role);
     const phone = normalizePhone(payload.phone);
+    const brief = normalizeRequiredText(payload.brief);
 
-    if (!name || !role || !phone) {
-      return Response.json({ error: "Nome, telefone e funcao sao obrigatorios." }, { status: 400 });
+    if (!name || !role || !phone || !brief) {
+      return Response.json(
+        { error: "Nome, telefone, funcao e objetivo sao obrigatorios." },
+        { status: 400 },
+      );
     }
 
     const response = await fetch(MATCHMAKER_WEBHOOK_URL, {
@@ -53,7 +57,7 @@ export async function POST(request: Request) {
       },
       cache: "no-store",
       signal: AbortSignal.timeout(getMatchmakerWebhookTimeoutMs()),
-      body: JSON.stringify({ name, phone, role }),
+      body: JSON.stringify({ name, phone, role, brief }),
     });
 
     const contentType = response.headers.get("content-type") ?? "application/json";
